@@ -167,6 +167,7 @@ static void sc_ack_send_task(void* pvParameters)
             }
 
             uint32_t ip_addr = server_addr.sin_addr.s_addr;
+            /* right iip address */
             while (s_sc_ack_send) {
                 /* Send smartconfig ACK every 100ms. */
                 vTaskDelay(100 / portTICK_RATE_MS);

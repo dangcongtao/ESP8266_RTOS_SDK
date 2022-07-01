@@ -106,6 +106,7 @@ static void tcpip_adapter_set_wifi_ps(bool flag)
 
 static void tcpip_adapter_dhcps_cb(u8_t client_ip[4])
 {
+    /* Err in here */
     ESP_LOGI(TAG,"softAP assign IP to station,IP is: %d.%d.%d.%d",
                 client_ip[0],client_ip[1],client_ip[2],client_ip[3]);
     system_event_t evt;

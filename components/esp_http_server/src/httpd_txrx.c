@@ -505,7 +505,7 @@ static int httpd_sock_err(const char *ctx, int sockfd)
         ESP_LOGE(TAG, LOG_FMT("error calling getsockopt : %d"), errno);
         return HTTPD_SOCK_ERR_FAIL;
     }
-    ESP_LOGW(TAG, LOG_FMT("error in %s : %d"), ctx, sock_err);
+    ESP_LOGW(TAG, LOG_FMT("error in %s : %d - %s"), ctx, sock_err, strerror(errno));
 
     switch(sock_err) {
     case EAGAIN:
@@ -518,6 +518,12 @@ static int httpd_sock_err(const char *ctx, int sockfd)
     case ENOTSOCK:
         errval = HTTPD_SOCK_ERR_INVALID;
         break;
+    case 0: {
+        ESP_LOGI(TAG, "Err socket no more exist, wann close\n");
+        close(sockfd);
+        errval = HTTPD_SOCK_ERR_FAIL;
+        break;
+    }
     default:
         errval = HTTPD_SOCK_ERR_FAIL;
     }

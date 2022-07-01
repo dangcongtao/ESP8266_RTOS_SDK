@@ -37,9 +37,6 @@ static void handler_got_ssid_passwd(void* arg, esp_event_base_t base, int32_t ev
     memcpy(password, evt->password, sizeof(evt->password));
     memcpy(cellphone_ip, evt->cellphone_ip, sizeof(evt->cellphone_ip));
 
-    ESP_LOGD(TAG, "SSID:%s", ssid);
-    ESP_LOGD(TAG, "PASSWORD:%s", password);
-    ESP_LOGD(TAG, "Phone ip: %d.%d.%d.%d\n", cellphone_ip[0], cellphone_ip[1], cellphone_ip[2], cellphone_ip[3]);
 
     err = sc_send_ack_start(evt->type, evt->token, evt->cellphone_ip);
 

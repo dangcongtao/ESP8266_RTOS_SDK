@@ -68,6 +68,7 @@ static int tcp_connect(esp_transport_handle_t t, const char *host, int port, int
 
     if (tcp->sock < 0) {
         ESP_LOGE(TAG, "Error create socket");
+        close(tcp->sock);
         return -1;
     }
 
