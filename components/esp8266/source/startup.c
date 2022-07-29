@@ -56,6 +56,14 @@ static inline int should_load(uint32_t load_addr)
 
 static void user_init_entry(void *param)
 {
+    extern void init_74hc595(void);
+    extern void hc595_clear_bit(uint8_t bit);
+    extern void hc595_set_bit(uint8_t bit);
+
+    hc595_set_bit(4);
+    hc595_clear_bit(5);
+    hc595_clear_bit(6);
+
     void (**func)(void);
 
     extern void (*__init_array_start)(void);
@@ -67,6 +75,10 @@ static void user_init_entry(void *param)
     /* initialize C++ construture function */
     for (func = &__init_array_start; func < &__init_array_end; func++)
         func[0]();
+
+    hc595_set_bit(4);
+    hc595_clear_bit(5);
+    hc595_clear_bit(6);
 
     esp_phy_init_clk();
     assert(base_gpio_init() == 0);
@@ -83,6 +95,10 @@ static void user_init_entry(void *param)
     esp_task_wdt_init();
 #endif
 
+    hc595_set_bit(4);
+    hc595_clear_bit(5);
+    hc595_clear_bit(6);
+
     assert(esp_pthread_init() == 0);
 
 #ifdef CONFIG_BOOTLOADER_FAST_BOOT
@@ -93,6 +109,11 @@ static void user_init_entry(void *param)
     esp_set_cpu_freq(ESP_CPU_FREQ_160M);
 #endif
 
+    hc595_set_bit(4);
+    hc595_clear_bit(5);
+    hc595_clear_bit(6);
+    hc595_clear_bit(4);
+    
     app_main();
 
     vTaskDelete(NULL);
