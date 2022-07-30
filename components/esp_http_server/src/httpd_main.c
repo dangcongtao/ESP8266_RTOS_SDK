@@ -25,6 +25,7 @@
 #include "ctrl_sock.h"
 
 static const char *TAG = "httpd";
+int g_current_fd = -1;
 
 static esp_err_t httpd_accept_conn(struct httpd_data *hd, int listen_fd)
 {
@@ -44,12 +45,20 @@ static esp_err_t httpd_accept_conn(struct httpd_data *hd, int listen_fd)
 
     struct sockaddr_in addr_from;
     socklen_t addr_from_len = sizeof(addr_from);
+
+    /* close last connnection  */
+    if (g_current_fd > 0) {
+        ESP_LOGI(TAG, "close old session fd=%d to acccept new one", g_current_fd);
+        close(g_current_fd);
+        httpd_sess_delete(hd, g_current_fd);
+    }
+
     int new_fd = accept(listen_fd, (struct sockaddr *)&addr_from, &addr_from_len);
     if (new_fd < 0) {
-        ESP_LOGW(TAG, LOG_FMT("error in accept (%d)"), errno);
+        ESP_LOGW(TAG, LOG_FMT("new fd < 0. Error in accept (%d)-%s"), errno, strerror(errno));
         return ESP_FAIL;
     }
-    ESP_LOGD(TAG, LOG_FMT("newfd = %d"), new_fd);
+    ESP_LOGI(TAG, LOG_FMT("newfd = %d"), new_fd);
 
     struct timeval tv;
     /* Set recv timeout of this fd as per config */
@@ -68,6 +77,7 @@ static esp_err_t httpd_accept_conn(struct httpd_data *hd, int listen_fd)
         return ESP_FAIL;
     }
     ESP_LOGD(TAG, LOG_FMT("complete"));
+    g_current_fd = new_fd;
     return ESP_OK;
 }
 
@@ -168,7 +178,7 @@ static esp_err_t httpd_server(struct httpd_data *hd)
     ESP_LOGD(TAG, LOG_FMT("doing select maxfd+1 = %d"), maxfd + 1);
     int active_cnt = select(maxfd + 1, &read_set, NULL, NULL, NULL);
     if (active_cnt < 0) {
-        ESP_LOGE(TAG, LOG_FMT("error in select (%d)"), errno);
+        ESP_LOGE(TAG, LOG_FMT("error in select (%d)- %s"), errno, strerror(errno));
         httpd_sess_delete_invalid(hd);
         return ESP_OK;
     }
@@ -188,13 +198,15 @@ static esp_err_t httpd_server(struct httpd_data *hd)
     int fd = -1;
     while ((fd = httpd_sess_iterate(hd, fd)) != -1) {
         if (FD_ISSET(fd, &read_set) || (httpd_sess_pending(hd, fd))) {
-            ESP_LOGD(TAG, LOG_FMT("processing socket %d"), fd);
+            ESP_LOGI(TAG, LOG_FMT("processing socket %d"), fd);
             if (httpd_sess_process(hd, fd) != ESP_OK) {
-                ESP_LOGD(TAG, LOG_FMT("closing socket %d"), fd);
-                close(fd);
+                ESP_LOGI(TAG, LOG_FMT("closing socket %d cause process fail"), fd);
+                if (fd > 0)
+                    close(fd);
                 /* Delete session and update fd to that
                  * preceding the one being deleted */
                 fd = httpd_sess_delete(hd, fd);
+                g_current_fd = fd;
             }
         }
     }
@@ -202,9 +214,15 @@ static esp_err_t httpd_server(struct httpd_data *hd)
     /* Case2: Do we have any incoming connection requests to
      * process? */
     if (FD_ISSET(hd->listen_fd, &read_set)) {
-        ESP_LOGD(TAG, LOG_FMT("processing listen socket %d"), hd->listen_fd);
+        ESP_LOGI(TAG, LOG_FMT("processing listen socket %d"), hd->listen_fd);
         if (httpd_accept_conn(hd, hd->listen_fd) != ESP_OK) {
             ESP_LOGW(TAG, LOG_FMT("error accepting new connection"));
+            if (fd > 0)
+                close(g_current_fd);
+
+            /* Err here */
+            fd = httpd_sess_delete(hd, g_current_fd);
+            g_current_fd = fd;
         }
     }
     return ESP_OK;
@@ -345,6 +363,14 @@ static void httpd_delete(struct httpd_data *hd)
 esp_err_t httpd_start(httpd_handle_t *handle, const httpd_config_t *config)
 {
     if (handle == NULL || config == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "max open sock = %d", config->max_open_sockets);
+    if (CONFIG_LWIP_MAX_SOCKETS < config->max_open_sockets + 3) {
+        ESP_LOGE(TAG, " ------- Configuration option max_open_sockets is too large (max allowed %d)\n\t"
+                      "Either decrease this or configure LWIP_MAX_SOCKETS to a larger value",
+                      CONFIG_LWIP_MAX_SOCKETS - 3);
         return ESP_ERR_INVALID_ARG;
     }
 
